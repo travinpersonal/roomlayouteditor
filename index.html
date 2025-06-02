@@ -24,7 +24,6 @@
     }
 
     h2 {
-    
       margin-top: 20px;
       color: var(--primary);
     }
@@ -109,10 +108,7 @@
 </head>
 <body>
 
-  <h2><div style="position: absolute; top: 10px; right: 20px; font-size: 16px; background: #fff; padding: 6px 10px; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.1);" id="timerDisplay">
-   Time left: <span id="timeLeft">2:00</span>
-</div>
-</h2>
+  <h2>📐 Room Layout Editor</h2>
 
   <div class="controls">
     <label>Room Width (ft): <input type="number" id="roomWidth" value="20"></label>
@@ -258,32 +254,6 @@
       objects.push(newObj);
       drawRoom();
     }
-    let time = 120;
-const timerDisplay = document.getElementById('timeLeft');
-const paymentOverlay = document.getElementById('paymentOverlay');
-
-const countdown = setInterval(() => {
-  time--;
-  const minutes = Math.floor(time / 60);
-  const seconds = time % 60;
-  timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  if (time <= 0) {
-    clearInterval(countdown);
-    paymentOverlay.style.display = 'block';
-  }
-}, 1000);
-
-// Replace with your actual Stripe Checkout URL
-function redirectToPayment() {
-  window.location.href = "https://buy.stripe.com/test_YourLinkHere"; 
-}
-
   </script>
-  <div id="paymentOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; text-align:center; padding-top:200px;">
-  <h2>Your session has ended ⏱</h2>
-  <p>Please purchase access to continue.</p>
-  <button onclick="redirectToPayment()" style="padding: 12px 24px; font-size: 16px; background: #28a745; color: white; border: none; border-radius: 10px; cursor: pointer;">Pay to Continue</button>
-</div>
-
 </body>
 </html>
