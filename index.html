@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Room Layout Editor</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f4f4f4;
+    }
+    header {
+      text-align: center;
+      padding: 20px;
+    }
+    canvas {
+      border: 2px solid #444;
+      background-color: #fff;
+      margin-top: 20px;
+    }
+    form {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    input, button {
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+    #controls {
+      display: flex;
+      gap: 15px;
+      margin-top: 10px;
+    }
+    #objectControls {
+      position: fixed;
+      right: 20px;
+      top: 100px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #objectControls button {
+      padding: 10px;
+      font-size: 14px;
+    }
+    #overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 20px;
+      display: none;
+      z-index: 10;
+    }
+    #overlay button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+    }
+    #timer {
+      position: fixed;
+      top: 10px;
+      right: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Room Layout Editor</h1>
+  </header>
+
+  <form onsubmit="event.preventDefault(); addObject();">
+    <input id="objName" type="text" placeholder="Name" required />
+    <input id="objWidth" type="number" placeholder="Width (ft)" required />
+    <input id="objHeight" type="number" placeholder="Height (ft)" required />
+    <button type="submit">Add Object</button>
+  </form>
+
+  <div id="controls">
+    <input id="roomWidth" type="number" placeholder="Room Width (ft)" value="20" />
+    <input id="roomHeight" type="number" placeholder="Room Height (ft)" value="15" />
+    <button onclick="createRoom()">Set Room Size</button>
+  </div>
+
+  <canvas id="roomCanvas" width="800" height="600"></canvas>
+
+  <div id="objectControls">
+    <button onclick="rotateSelected()">Rotate 45°</button>
+    <button onclick="deleteSelected()">Delete</button>
+  </div>
+
+  <div id="overlay">
+    <div>Time's up! Please pay to continue using the editor.</div>
+    <button id="checkoutButton">Pay with Stripe</button>
+  </div>
+
+  <div id="timer">Time left: 2:00</div>
+
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    const canvas = document.getElementById('roomCanvas');
+    const ctx = canvas.getContext('2d');
+    const scale = 20; // 1 ft = 20 pixels
+    let room = { width: 20 * scale, height: 15 * scale };
+    let objects = [];
+    let selected = null;
+    let dragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    function createRoom() {
+      const w = parseInt(document.getElementById('roomWidth').value);
+      const h = parseInt(document.getElementById('roomHeight').value);
+      room.width = w * scale;
+      room.height = h * scale;
+      canvas.width = room.width;
+      canvas.height = room.height;
+      drawRoom();
+    }
+
+    function addObject() {
+      const name = document.getElementById('objName').value;
+      const width = parseInt(document.getElementById('objWidth').value) * scale;
+      const height = parseInt(document.getElementById('objHeight').value) * scale;
+
+      const newObj = {
+        x: (room.width - width) / 2,
+        y: (room.height - height) / 2,
+        width,
+        height,
+        rotation: 0,
+        name
+      };
+
+      objects.push(newObj);
+      drawRoom();
+    }
+
+    function drawRoom() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      objects.forEach(obj => {
+        ctx.save();
+        ctx.translate(obj.x + obj.width / 2, obj.y + obj.height / 2);
+        ctx.rotate(obj.rotation * Math.PI / 180);
+        ctx.fillStyle = obj === selected ? "#87cefa" : "#ccc";
+        ctx.fillRect(-obj.width / 2, -obj.height / 2, obj.width, obj.height);
+        ctx.fillStyle = "#000";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(obj.name, 0, 5);
+        ctx.restore();
+      });
+    }
+
+    canvas.addEventListener("mousedown", e => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      selected = null;
+      for (let i = objects.length - 1; i >= 0; i--) {
+        const obj = objects[i];
+        const centerX = obj.x + obj.width / 2;
+        const centerY = obj.y + obj.height / 2;
+
+        const rotatedX = (mouseX - centerX) * Math.cos(-obj.rotation * Math.PI / 180) - (mouseY - centerY) * Math.sin(-obj.rotation * Math.PI / 180) + centerX;
+        const rotatedY = (mouseX - centerX) * Math.sin(-obj.rotation * Math.PI / 180) + (mouseY - centerY) * Math.cos(-obj.rotation * Math.PI / 180) + centerY;
+
+        if (
+          rotatedX >= obj.x &&
+          rotatedX <= obj.x + obj.width &&
+          rotatedY >= obj.y &&
+          rotatedY <= obj.y + obj.height
+        ) {
+          selected = obj;
+          dragOffset.x = mouseX - obj.x;
+          dragOffset.y = mouseY - obj.y;
+          dragging = true;
+          break;
+        }
+      }
+      drawRoom();
+      document.getElementById('objectControls').style.display = selected ? "flex" : "none";
+    });
+
+    canvas.addEventListener("mousemove", e => {
+      if (!dragging || !selected) return;
+      const rect = canvas.getBoundingClientRect();
+      selected.x = e.clientX - rect.left - dragOffset.x;
+      selected.y = e.clientY - rect.top - dragOffset.y;
+      drawRoom();
+    });
+
+    canvas.addEventListener("mouseup", () => {
+      dragging = false;
+    });
+
+    function rotateSelected() {
+      if (selected) {
+        selected.rotation = (selected.rotation + 45) % 360;
+        drawRoom();
+      }
+    }
+
+    function deleteSelected() {
+      if (selected) {
+        objects = objects.filter(o => o !== selected);
+        selected = null;
+        drawRoom();
+        document.getElementById('objectControls').style.display = "none";
+      }
+    }
+
+    createRoom(); // Initialize canvas on load
+
+    // Stripe paywall timer
+    let timeLeft = 120;
+    const timerDiv = document.getElementById("timer");
+    const overlay = document.getElementById("overlay");
+    const countdown = setInterval(() => {
+      timeLeft--;
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = String(timeLeft % 60).padStart(2, '0');
+      timerDiv.textContent = `Time left: ${minutes}:${seconds}`;
+      if (timeLeft <= 0) {
+        clearInterval(countdown);
+        overlay.style.display = "flex";
+      }
+    }, 1000);
+
+    const stripe = Stripe("pk_live_51RVXkC016wnsxHE50VjkaiPfspvHlp2yG2iKxmB7VTxjLRlkqDweq7jCHuyWEXHY0TSNeE9OiCbWXbbMaHmsrcWr00gzrbFG9E");
+
+    document.getElementById("checkoutButton").addEventListener("click", () => {
+      stripe.redirectToCheckout({
+        lineItems: [{ price: "price_1RVYIY016wnsxHE5JGdahWB0", quantity: 1 }],
+        mode: "payment",
+        successUrl: window.location.href,
+        cancelUrl: window.location.href
+      });
+    });
+  </script>
+</body>
+</html>
